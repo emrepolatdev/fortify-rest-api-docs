@@ -1,0 +1,695 @@
+{
+  "info": {
+    "_postman_id": "046c8aae-e34a-483b-8d26-493201595d43",
+    "name": "Fortify SSC REST API - Basic To Advanced",
+    "description": "# Fortify SSC REST API\n\nBu koleksiyon, Fortify SSC REST API üzerinden proje seçip vulnerability ve severity verilerini üçüncü parti uygulamalara aktarmak için kullanılabilir.\n\n## Tanımlar\n\n`baseUrl`: SSC sunucusunun ana adresidir. Örnek: `http://localhost:8090`. Request path'i ayrıca `/ssc/api/v1/...` ile devam eder.\n\n`endpoint`: API'de çağrılan belirli adrestir. Örnek: `GET {{baseUrl}}/ssc/api/v1/projectVersions/{{versionId}}/issues`.\n\n`Authorization / FortifyToken`: API çağrılarında kullanılan kimlik doğrulama header'ıdır. Format: `Authorization: FortifyToken <TOKEN>`.\n\n`project`: SSC'deki uygulama/proje kaydıdır. Proje listesini almak için `/projects` endpoint'i kullanılır.\n\n`projectVersion`: Vulnerability kayıtlarının bağlı olduğu proje versiyonudur. Issue/vulnerability verisi proje altında değil, project version altında tutulur.\n\n`issue / vulnerability`: SSC'nin bulgu kaydıdır. Bu dokümanda vulnerability ile issue aynı veri ailesini ifade eder.\n\n`fields`: Response içinde dönecek alanları seçer. Gereksiz alanları çıkarmak için kullanılır. Örnek: `fields=projectName,issueName,severity`.\n\n`limit`: Bir sayfada kaç kayıt döneceğini belirler. Bu dokümandaki listeleme örneklerinde `limit=200` kullanılır.\n\n`start`: Sayfalama başlangıç noktasıdır. `start=0` ilk sayfa, `start=200` ikinci sayfa, `start=400` üçüncü sayfadır.\n\n`count`: Response içinde dönen toplam kayıt sayısıdır. Büyük batch aktarımlarda gerekli değilse `withoutCount=true` ile hesaplama kapatılabilir.\n\n`_href`: SSC'nin ilgili kaynağa ait link alanıdır. Entegrasyon için zorunlu değildir; ihtiyaç yoksa uygulama tarafında yok sayılabilir.\n\n## Field Açıklamaları\n\n### Basic Response Fields\n\n`projectVersionId`: Vulnerability kaydının bağlı olduğu SSC project version id değeridir.\n\n`projectName`: SSC'deki proje adıdır.\n\n`projectVersionName`: Projenin versiyon adıdır.\n\n`issueName`: Vulnerability/bulgu adıdır.\n\n`friority`: SSC'nin metinsel risk/öncelik seviyesidir. Örnek değerler: `Critical`, `High`, `Medium`, `Low`.\n\n`severity`: Sayısal severity skorudur. Üçüncü parti sistemlerde risk seviyesi hesaplama veya sıralama için kullanılabilir.\n\n### Advanced Response Fields\n\n`id`: Issue/vulnerability id değeridir. Tekil bulgu detayına gitmek için `issueDetails/{{issueId}}` endpoint'inde kullanılır.\n\n`confidence`: Bulgunun güven skorudur. Bulgunun doğruluk olasılığını değerlendirmek için kullanılır.\n\n`primaryLocation`: Bulgunun ana dosya veya lokasyon bilgisidir.\n\n`lineNumber`: Bulgunun görüldüğü satır numarasıdır.\n\n`fullFileName`: Dosyanın tam path bilgisidir.\n\n`kingdom`: Fortify güvenlik kategori ailesidir. Örnek: `Security Features`, `Input Validation and Representation`.\n\n`analyzer`: Bulguyu üreten analiz motorudur. Örnek: `Data Flow`, `Structural`.\n\n`scanStatus`: Bulgunun scan durumudur. Örnek: `NEW`.\n\n`issueStatus`: Audit/review durumudur. Örnek: `Unreviewed`.\n\n`foundDate`: Bulgunun ilk bulunduğu tarihtir.\n\n`audited`: Bulgunun manuel olarak incelenip incelenmediğini gösterir.\n\n`suppressed`: Bulgunun suppressed olarak işaretlenip işaretlenmediğini gösterir.\n\n`hidden`: Bulgunun hidden olarak işaretlenip işaretlenmediğini gösterir.\n\n`removed`: Bulgunun removed/remediated durumda olup olmadığını gösterir.\n\n## Resmi Dokümanda Geçen Limitler\n\n- Bu collection'daki liste endpointlerinde varsayılan `limit` değeri `200`'dur.\n    \n- `limit=-1` veya `limit=0`, limit uygulanmadan listeleme anlamına gelir.\n    \n- Full text search kullanan API çağrılarında limitsiz listeleme desteklenmez.\n    \n- `withoutCount=true`, toplam `count` hesaplamasını kapatır.\n    \n- `fields`, response payload içinde dönecek alanları sınırlar.\n    \n- `start`, sayfalama başlangıç noktasıdır.\n    \n- Bu endpointler için resmi dokümanda saniye başına sabit request sayısı tanımı yoktur.\n    \n\n## Authentication\n\nBase URL şu şekilde tanımlanır:\n\n`{{baseUrl}} = http://localhost:8090`\n\nToken almak için Basic Auth ile token oluşturma endpoint'i çağrılır:\n\n`POST {{baseUrl}}/ssc/api/v1/tokens`\n\nÖnerilen token tipi `AutomationToken`'dır. Bu tip entegrasyon kullanımı için uygundur; local token definitions response'unda `maxDaysToLive=365`, `maxUsages=-1` olarak görülmüştür.\n\nÖrnek body:\n\n```json\n{\n  \"type\": \"AutomationToken\",\n  \"description\": \"Third-party integration token\"\n}\n```\n\nResponse içindeki `data.token` değeri, sonraki API çağrılarında şu header ile kullanılır:\n\n```text\nAuthorization: FortifyToken {{fortifyToken}}\n```\n\n\n## Hızlı\n\nTemel request:\n\n`GET {{baseUrl}}/ssc/api/v1/projectVersions/{versionId}/issues?fields=projectVersionId,projectName,projectVersionName,issueName,friority,severity`\n\nBu request seçili project version için proje adı, proje versiyonu, vulnerability adı, level ve severity bilgisini döner.\n\n## Gelişmiş\n\nDaha fazla operasyonel alan gerektiğinde aynı endpoint `start`, `limit`, `withoutCount` ve ek `fields` değerleriyle genişletilir.\n\n## Enterprise Full Export Flow\n\nTüm projeler ve tüm proje versiyonları için vulnerability verisi alınacaksa akışı project version bazında tekrarlayın.\n\n1. `GET {{baseUrl}}/ssc/api/v1/projectVersions?start=0&limit=200&fields=id,project,name`\n    \n2. Dönen her `projectVersionId` için `GET {{baseUrl}}/ssc/api/v1/projectVersions/{versionId}/issues?start=0&limit=200&fields=...`\n    \n3. Her issue listesi için `start` değerini artırarak tüm sayfaları çekin.\n    \n\nBu yaklaşım, tek büyük export yerine kontrollü ve izlenebilir sayfalı aktarım sağlar.\n\nBu collection SSC 26.2 ortamında hazırlanmıştır.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "54535921",
+    "_collection_link": "https://go.postman.co/collection/54535921-046c8aae-e34a-483b-8d26-493201595d43?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "00 - Authentication - Create Token",
+      "request": {
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{sscUsername}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{sscPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"AutomationToken\",\n  \"description\": \"Third-party integration token\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/ssc/api/v1/tokens",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ssc",
+            "api",
+            "v1",
+            "tokens"
+          ]
+        },
+        "description": "Fortify token oluşturmak için kullanılır. Bu request Basic Auth ile çalışır. Response içindeki `data.token` değeri collection variable `fortifyToken` olarak saklanır ve diğer endpointlerde `Authorization: FortifyToken {{fortifyToken}}` header değeriyle kullanılır. Entegrasyon için `AutomationToken` önerilir; local token definitions response'unda bu tip için `maxDaysToLive=365`, `maxUsages=-1` görülmüştür."
+      },
+      "response": [
+        {
+          "name": "201 Created - Token created",
+          "originalRequest": {
+            "auth": {
+              "type": "basic",
+              "basic": [
+                {
+                  "key": "username",
+                  "value": "{{sscUsername}}",
+                  "type": "string"
+                },
+                {
+                  "key": "password",
+                  "value": "{{sscPassword}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"AutomationToken\",\n  \"description\": \"Third-party integration token\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ssc/api/v1/tokens",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ssc",
+                "api",
+                "v1",
+                "tokens"
+              ]
+            },
+            "description": "Fortify token oluşturmak için kullanılır. Bu request Basic Auth ile çalışır. Response içindeki `data.token` değeri collection variable `fortifyToken` olarak saklanır ve diğer endpointlerde `Authorization: FortifyToken {{fortifyToken}}` header değeriyle kullanılır. Entegrasyon için `AutomationToken` önerilir; local token definitions response'unda bu tip için `maxDaysToLive=365`, `maxUsages=-1` görülmüştür."
+          },
+          "status": "Created",
+          "code": 201,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"data\": {\n    \"id\": 123,\n    \"type\": \"AutomationToken\",\n    \"description\": \"Third-party integration token\",\n    \"terminalDate\": \"2027-06-05T12:00:00.000+00:00\",\n    \"remainingUsages\": -1,\n    \"token\": \"TOKEN_VALUE_RETURNED_ONLY_ON_CREATION\",\n    \"username\": \"api-user\"\n  },\n  \"responseCode\": 201\n}"
+        }
+      ]
+    },
+    {
+      "name": "01 - Basic - Vulnerabilities and Severity by Project Version",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/ssc/api/v1/projectVersions/{{versionId}}/issues?fields=projectVersionId,projectName,projectVersionName,issueName,friority,severity",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ssc",
+            "api",
+            "v1",
+            "projectVersions",
+            "{{versionId}}",
+            "issues"
+          ],
+          "query": [
+            {
+              "key": "fields",
+              "value": "projectVersionId,projectName,projectVersionName,issueName,friority,severity",
+              "description": "Response'u sade tutar. projectName proje adı, issueName vulnerability adı, friority metinsel level, severity sayısal skordur."
+            }
+          ]
+        },
+        "description": "Ana entegrasyon endpoint'i. Seçili project version için proje adı, proje versiyonu, vulnerability adı, level ve severity döner.\n\n`fields` parametresi, üçüncü parti uygulama için gerekli response alanlarını sınırlandırır ve payload boyutunu azaltır.\n\nÖrnek:\n`fields=projectVersionId,projectName,projectVersionName,issueName,friority,severity`\n\nAlanlar:\n- `projectVersionId`: SSC'de issue'lar project version altında tutulur.\n- `projectName`: Proje adı.\n- `projectVersionName`: Proje versiyonu.\n- `issueName`: Vulnerability adı.\n- `friority`: Level; Critical, High, Medium, Low gibi metinsel öncelik.\n- `severity`: Sayısal severity skoru.\n\nKurumsal ortamlarda aynı request'e `start=0&limit=200` eklenerek sayfalı kullanım önerilir."
+      },
+      "response": [
+        {
+          "name": "200 OK - Basic vulnerability severity list",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ssc/api/v1/projectVersions/{{versionId}}/issues?fields=projectVersionId,projectName,projectVersionName,issueName,friority,severity",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ssc",
+                "api",
+                "v1",
+                "projectVersions",
+                "{{versionId}}",
+                "issues"
+              ],
+              "query": [
+                {
+                  "key": "fields",
+                  "value": "projectVersionId,projectName,projectVersionName,issueName,friority,severity",
+                  "description": "Response'u sade tutar. projectName proje adı, issueName vulnerability adı, friority metinsel level, severity sayısal skordur."
+                }
+              ]
+            },
+            "description": "Ana entegrasyon endpoint'i. Seçili project version için proje adı, proje versiyonu, vulnerability adı, level ve severity döner.\n\n`fields` parametresi, üçüncü parti uygulama için gerekli response alanlarını sınırlandırır ve payload boyutunu azaltır.\n\nÖrnek:\n`fields=projectVersionId,projectName,projectVersionName,issueName,friority,severity`\n\nAlanlar:\n- `projectVersionId`: SSC'de issue'lar project version altında tutulur.\n- `projectName`: Proje adı.\n- `projectVersionName`: Proje versiyonu.\n- `issueName`: Vulnerability adı.\n- `friority`: Level; Critical, High, Medium, Low gibi metinsel öncelik.\n- `severity`: Sayısal severity skoru.\n\nKurumsal ortamlarda aynı request'e `start=0&limit=200` eklenerek sayfalı kullanım önerilir."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"data\": [\n    {\n      \"projectVersionId\": 1,\n      \"projectName\": \"OWASP-JuiceShop\",\n      \"projectVersionName\": \"20.0.0\",\n      \"issueName\": \"Privacy Violation\",\n      \"friority\": \"Critical\",\n      \"severity\": 5.0,\n      \"_href\": \"http://localhost:8090/ssc/api/v1/projectVersions/1/issues/11\"\n    },\n    {\n      \"projectVersionId\": 1,\n      \"projectName\": \"OWASP-JuiceShop\",\n      \"projectVersionName\": \"20.0.0\",\n      \"issueName\": \"Password Management: Password in Comment\",\n      \"friority\": \"Low\",\n      \"severity\": 2.0,\n      \"_href\": \"http://localhost:8090/ssc/api/v1/projectVersions/1/issues/31\"\n    }\n  ],\n  \"count\": 74,\n  \"responseCode\": 200\n}"
+        }
+      ]
+    },
+    {
+      "name": "02 - Advanced - Vulnerability List with Operational Fields",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/ssc/api/v1/projectVersions/{{versionId}}/issues?limit=200&fields=projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,confidence,primaryLocation,lineNumber,fullFileName,kingdom,analyzer,scanStatus,issueStatus,foundDate,audited,suppressed,hidden,removed",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ssc",
+            "api",
+            "v1",
+            "projectVersions",
+            "{{versionId}}",
+            "issues"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "200",
+              "description": "Sayfa başına kayıt sayısı. Resmi dokümanda liste endpointleri için varsayılan limit 200'dür."
+            },
+            {
+              "key": "fields",
+              "value": "projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,confidence,primaryLocation,lineNumber,fullFileName,kingdom,analyzer,scanStatus,issueStatus,foundDate,audited,suppressed,hidden,removed",
+              "description": "Üçüncü parti sistem için gerekli alanlar. Gereksiz alanları çıkarmak payload'u azaltır."
+            }
+          ]
+        },
+        "description": "Daha detaylı liste görünümü. Dashboard, BI, SIEM veya internal portal için uygundur.\n\nBu Advanced request ana çözümün genişletilmiş halidir:\n`limit=200&fields=projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,confidence,primaryLocation,lineNumber,fullFileName,kingdom,analyzer,scanStatus,issueStatus,foundDate,audited,suppressed,hidden,removed`\n\nEk alanlar:\n- `id`: Issue/vulnerability id.\n- `confidence`: Bulgunun güven skoru.\n- `primaryLocation`: Dosya adı.\n- `lineNumber`: Satır numarası.\n- `fullFileName`: Tam dosya yolu.\n- `kingdom`: Güvenlik kategori ailesi.\n- `analyzer`: Bulan analiz motoru.\n- `scanStatus`: NEW gibi scan durumu.\n- `issueStatus`: Unreviewed gibi audit durumu.\n- `foundDate`: İlk bulunma tarihi.\n- `audited`: Manuel incelendi mi.\n- `suppressed`, `hidden`, `removed`: Gösterim/aktiflik bayrakları.\n\nBest practice: Büyük ortamlarda aynı yapıya `start=0`, `start=200` şeklinde pagination eklenerek sayfalı ilerlenir. Toplam count gerekmeyen batch aktarımlarda ayrıca `withoutCount=true` kullanılabilir."
+      },
+      "response": [
+        {
+          "name": "200 OK - Advanced operational vulnerability list",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ssc/api/v1/projectVersions/{{versionId}}/issues?limit=200&fields=projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,confidence,primaryLocation,lineNumber,fullFileName,kingdom,analyzer,scanStatus,issueStatus,foundDate,audited,suppressed,hidden,removed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ssc",
+                "api",
+                "v1",
+                "projectVersions",
+                "{{versionId}}",
+                "issues"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "200",
+                  "description": "Sayfa başına kayıt sayısı. Resmi dokümanda liste endpointleri için varsayılan limit 200'dür."
+                },
+                {
+                  "key": "fields",
+                  "value": "projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,confidence,primaryLocation,lineNumber,fullFileName,kingdom,analyzer,scanStatus,issueStatus,foundDate,audited,suppressed,hidden,removed",
+                  "description": "Üçüncü parti sistem için gerekli alanlar. Gereksiz alanları çıkarmak payload'u azaltır."
+                }
+              ]
+            },
+            "description": "Daha detaylı liste görünümü. Dashboard, BI, SIEM veya internal portal için uygundur.\n\nBu Advanced request ana çözümün genişletilmiş halidir:\n`limit=200&fields=projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,confidence,primaryLocation,lineNumber,fullFileName,kingdom,analyzer,scanStatus,issueStatus,foundDate,audited,suppressed,hidden,removed`\n\nEk alanlar:\n- `id`: Issue/vulnerability id.\n- `confidence`: Bulgunun güven skoru.\n- `primaryLocation`: Dosya adı.\n- `lineNumber`: Satır numarası.\n- `fullFileName`: Tam dosya yolu.\n- `kingdom`: Güvenlik kategori ailesi.\n- `analyzer`: Bulan analiz motoru.\n- `scanStatus`: NEW gibi scan durumu.\n- `issueStatus`: Unreviewed gibi audit durumu.\n- `foundDate`: İlk bulunma tarihi.\n- `audited`: Manuel incelendi mi.\n- `suppressed`, `hidden`, `removed`: Gösterim/aktiflik bayrakları.\n\nBest practice: Büyük ortamlarda aynı yapıya `start=0`, `start=200` şeklinde pagination eklenerek sayfalı ilerlenir. Toplam count gerekmeyen batch aktarımlarda ayrıca `withoutCount=true` kullanılabilir."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"data\": [\n    {\n      \"projectVersionId\": 1,\n      \"projectName\": \"OWASP-JuiceShop\",\n      \"projectVersionName\": \"20.0.0\",\n      \"id\": 11,\n      \"issueName\": \"Privacy Violation\",\n      \"friority\": \"Critical\",\n      \"severity\": 5.0,\n      \"confidence\": 4.8,\n      \"primaryLocation\": \"2fa.ts\",\n      \"lineNumber\": 69,\n      \"fullFileName\": \"routes/2fa.ts\",\n      \"kingdom\": \"Security Features\",\n      \"analyzer\": \"Data Flow\",\n      \"scanStatus\": \"NEW\",\n      \"issueStatus\": \"Unreviewed\",\n      \"foundDate\": \"2026-06-05T12:14:34.000+00:00\",\n      \"audited\": false,\n      \"suppressed\": false,\n      \"hidden\": false,\n      \"removed\": false,\n      \"_href\": \"http://localhost:8090/ssc/api/v1/projectVersions/1/issues/11\"\n    }\n  ],\n  \"count\": 74,\n  \"responseCode\": 200\n}"
+        }
+      ]
+    },
+    {
+      "name": "03 - Advanced - Include Hidden Removed Suppressed Issues",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/ssc/api/v1/projectVersions/{{versionId}}/issues?start={{start}}&limit={{pageSize}}&showhidden=true&showremoved=true&showsuppressed=true&fields=projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,issueStatus,hidden,removed,suppressed",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ssc",
+            "api",
+            "v1",
+            "projectVersions",
+            "{{versionId}}",
+            "issues"
+          ],
+          "query": [
+            {
+              "key": "start",
+              "value": "{{start}}"
+            },
+            {
+              "key": "limit",
+              "value": "{{pageSize}}"
+            },
+            {
+              "key": "showhidden",
+              "value": "true",
+              "description": "Gizli issue'lari da dahil eder."
+            },
+            {
+              "key": "showremoved",
+              "value": "true",
+              "description": "Artık mevcut olmayan/remediated issue'lari da dahil eder."
+            },
+            {
+              "key": "showsuppressed",
+              "value": "true",
+              "description": "Suppressed issue'lari da dahil eder."
+            },
+            {
+              "key": "fields",
+              "value": "projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,issueStatus,hidden,removed,suppressed"
+            }
+          ]
+        },
+        "description": "Normal entegrasyonda bu endpoint gerekmez. Denetim, arşivtam kapsamlı raporlama için hidden/removed/suppressed issue'lari da dahil eder."
+      },
+      "response": [
+        {
+          "name": "200 OK - Full scope including hidden removed suppressed flags",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ssc/api/v1/projectVersions/{{versionId}}/issues?start={{start}}&limit={{pageSize}}&showhidden=true&showremoved=true&showsuppressed=true&fields=projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,issueStatus,hidden,removed,suppressed",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ssc",
+                "api",
+                "v1",
+                "projectVersions",
+                "{{versionId}}",
+                "issues"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "{{start}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "{{pageSize}}"
+                },
+                {
+                  "key": "showhidden",
+                  "value": "true",
+                  "description": "Gizli issue'lari da dahil eder."
+                },
+                {
+                  "key": "showremoved",
+                  "value": "true",
+                  "description": "Artık mevcut olmayan/remediated issue'lari da dahil eder."
+                },
+                {
+                  "key": "showsuppressed",
+                  "value": "true",
+                  "description": "Suppressed issue'lari da dahil eder."
+                },
+                {
+                  "key": "fields",
+                  "value": "projectVersionId,projectName,projectVersionName,id,issueName,friority,severity,issueStatus,hidden,removed,suppressed"
+                }
+              ]
+            },
+            "description": "Normal entegrasyonda bu endpoint gerekmez. Denetim, arşivtam kapsamlı raporlama için hidden/removed/suppressed issue'lari da dahil eder."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"data\": [\n    {\n      \"projectVersionId\": 1,\n      \"projectName\": \"OWASP-JuiceShop\",\n      \"projectVersionName\": \"20.0.0\",\n      \"id\": 11,\n      \"issueName\": \"Privacy Violation\",\n      \"friority\": \"Critical\",\n      \"severity\": 5.0,\n      \"issueStatus\": \"Unreviewed\",\n      \"hidden\": false,\n      \"removed\": false,\n      \"suppressed\": false,\n      \"_href\": \"http://localhost:8090/ssc/api/v1/projectVersions/1/issues/11\"\n    }\n  ],\n  \"count\": 74,\n  \"responseCode\": 200\n}"
+        }
+      ]
+    },
+    {
+      "name": "04 - Issue Detail - Remediation and Trace",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/ssc/api/v1/issueDetails/{{issueId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ssc",
+            "api",
+            "v1",
+            "issueDetails",
+            "{{issueId}}"
+          ]
+        },
+        "description": "Tek vulnerability için detay görünümü. Liste endpoint'inden gelen `id` değeri burada `issueId` olarak kullanılır.\n\nBu endpoint şu alanları da döndürebilir:\n- `brief`: Kısa açıklama.\n- `detail`: Detaylı açıklama.\n- `recommendation`: Çözüm önerisi.\n- `references`: Referanslar.\n- `tips`: Ek ipuçları.\n- `traceNodes`: Data flow / trace bilgisi."
+      },
+      "response": [
+        {
+          "name": "200 OK - Issue detail with remediation fields",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ssc/api/v1/issueDetails/{{issueId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ssc",
+                "api",
+                "v1",
+                "issueDetails",
+                "{{issueId}}"
+              ]
+            },
+            "description": "Tek vulnerability için detay görünümü. Liste endpoint'inden gelen `id` değeri burada `issueId` olarak kullanılır.\n\nBu endpoint şu alanları da döndürebilir:\n- `brief`: Kısa açıklama.\n- `detail`: Detaylı açıklama.\n- `recommendation`: Çözüm önerisi.\n- `references`: Referanslar.\n- `tips`: Ek ipuçları.\n- `traceNodes`: Data flow / trace bilgisi."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"data\": {\n    \"projectVersionId\": 1,\n    \"id\": 11,\n    \"lastScanId\": 1,\n    \"issueInstanceId\": \"2E5C04609F7B3037EB377D73F3D873A9\",\n    \"issueName\": \"Privacy Violation\",\n    \"fullFileName\": \"routes/2fa.ts\",\n    \"shortFileName\": \"2fa.ts\",\n    \"brief\": \"Short vulnerability explanation returned by SSC.\",\n    \"detail\": \"Detailed vulnerability explanation returned by SSC.\",\n    \"recommendation\": \"Recommended remediation text returned by SSC.\",\n    \"references\": \"External references returned by SSC, if available.\",\n    \"tips\": \"Additional analysis tips returned by SSC, if available.\",\n    \"traceNodes\": [],\n    \"engineType\": \"SCA\",\n    \"analyzer\": \"Data Flow\",\n    \"foundDate\": \"2026-06-05T12:14:34.000+00:00\",\n    \"suppressed\": false,\n    \"hidden\": false,\n    \"audited\": false,\n    \"impact\": 5.0,\n    \"likelihood\": 2.688,\n    \"severity\": 5.0,\n    \"confidence\": 4.8,\n    \"_href\": \"http://localhost:8090/ssc/api/v1/issueDetails/11\"\n  },\n  \"responseCode\": 200\n}"
+        }
+      ]
+    },
+    {
+      "name": "05 - Discover Projects",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/ssc/api/v1/projects?start={{start}}&limit={{pageSize}}&fields=id,name&orderby=name",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ssc",
+            "api",
+            "v1",
+            "projects"
+          ],
+          "query": [
+            {
+              "key": "start",
+              "value": "{{start}}"
+            },
+            {
+              "key": "limit",
+              "value": "{{pageSize}}"
+            },
+            {
+              "key": "fields",
+              "value": "id,name",
+              "description": "Proje seçimi için sadece id ve name yeterlidir."
+            },
+            {
+              "key": "orderby",
+              "value": "name",
+              "description": "Projeleri ada göre sıralar."
+            }
+          ]
+        },
+        "description": "Müşteride birden fazla proje varsa önce bu endpoint ile proje listesi alınır. Dönen `id`, sonraki istekte `projectId` olarak kullanılır."
+      },
+      "response": [
+        {
+          "name": "200 OK - Project discovery",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ssc/api/v1/projects?start={{start}}&limit={{pageSize}}&fields=id,name&orderby=name",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ssc",
+                "api",
+                "v1",
+                "projects"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "{{start}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "{{pageSize}}"
+                },
+                {
+                  "key": "fields",
+                  "value": "id,name",
+                  "description": "Proje seçimi için sadece id ve name yeterlidir."
+                },
+                {
+                  "key": "orderby",
+                  "value": "name",
+                  "description": "Projeleri ada göre sıralar."
+                }
+              ]
+            },
+            "description": "Müşteride birden fazla proje varsa önce bu endpoint ile proje listesi alınır. Dönen `id`, sonraki istekte `projectId` olarak kullanılır."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"OWASP-JuiceShop\",\n      \"_href\": \"http://localhost:8090/ssc/api/v1/projects/1\"\n    },\n    {\n      \"id\": 2,\n      \"name\": \"OWASP-NodeGoat\",\n      \"_href\": \"http://localhost:8090/ssc/api/v1/projects/2\"\n    }\n  ],\n  \"count\": 2,\n  \"responseCode\": 200\n}"
+        }
+      ]
+    },
+    {
+      "name": "06 - Discover Project Versions",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/ssc/api/v1/projects/{{projectId}}/versions?start={{start}}&limit={{pageSize}}&fields=id,name,committed,active,project&orderby=name",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "ssc",
+            "api",
+            "v1",
+            "projects",
+            "{{projectId}}",
+            "versions"
+          ],
+          "query": [
+            {
+              "key": "start",
+              "value": "{{start}}"
+            },
+            {
+              "key": "limit",
+              "value": "{{pageSize}}"
+            },
+            {
+              "key": "fields",
+              "value": "id,name,committed,active,project",
+              "description": "Issue çekmek için gerekli version id burada bulunur."
+            },
+            {
+              "key": "orderby",
+              "value": "name"
+            }
+          ]
+        },
+        "description": "SSC'de vulnerability verisi proje değil, project version altındadır. Bu endpoint ile seçilen projenin version id'si bulunur. Dönen `id`, issue endpoint'inde `versionId` olarak kullanılır."
+      },
+      "response": [
+        {
+          "name": "200 OK - Project version discovery",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ssc/api/v1/projects/{{projectId}}/versions?start={{start}}&limit={{pageSize}}&fields=id,name,committed,active,project&orderby=name",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "ssc",
+                "api",
+                "v1",
+                "projects",
+                "{{projectId}}",
+                "versions"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "{{start}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "{{pageSize}}"
+                },
+                {
+                  "key": "fields",
+                  "value": "id,name,committed,active,project",
+                  "description": "Issue çekmek için gerekli version id burada bulunur."
+                },
+                {
+                  "key": "orderby",
+                  "value": "name"
+                }
+              ]
+            },
+            "description": "SSC'de vulnerability verisi proje değil, project version altındadır. Bu endpoint ile seçilen projenin version id'si bulunur. Dönen `id`, issue endpoint'inde `versionId` olarak kullanılır."
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "Text",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "cookie": [],
+          "body": "{\n  \"data\": [\n    {\n      \"id\": 1,\n      \"name\": \"20.0.0\",\n      \"committed\": true,\n      \"active\": true,\n      \"project\": {\n        \"id\": 1,\n        \"name\": \"OWASP-JuiceShop\"\n      },\n      \"_href\": \"http://localhost:8090/ssc/api/v1/projectVersions/1\"\n    }\n  ],\n  \"count\": 1,\n  \"responseCode\": 200\n}"
+        }
+      ]
+    }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "Authorization",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "FortifyToken {{fortifyToken}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8090"
+    },
+    {
+      "key": "fortifyToken",
+      "value": ""
+    },
+    {
+      "key": "projectId",
+      "value": "1"
+    },
+    {
+      "key": "versionId",
+      "value": "1"
+    },
+    {
+      "key": "issueId",
+      "value": "11"
+    },
+    {
+      "key": "start",
+      "value": "0"
+    },
+    {
+      "key": "pageSize",
+      "value": "200"
+    },
+    {
+      "key": "withoutCount",
+      "value": "false"
+    },
+    {
+      "key": "sscUsername",
+      "value": ""
+    },
+    {
+      "key": "sscPassword",
+      "value": ""
+    }
+  ]
+}
